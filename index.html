@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Sistem Informasi Pelayanan & Logistik Kargo Kapal Laut - PT Logistik Nusantara, rute Gorontalo ke Surabaya.">
+<title>Cargo &amp; Port Logistics Scheduler — PT Logistik Nusantara</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e8f8f'/%3E%3Ctext x='32' y='43' font-family='Segoe UI,Arial' font-size='28' font-weight='800' fill='%23ffffff' text-anchor='middle'%3ELN%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ==================== MODAL LOGIN (autentikasi simulasi) ==================== -->
+<div class="login-overlay" id="login-modal" hidden>
+  <div class="login-box" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <div class="login-logo">LN</div>
+    <h2 id="login-title">Login Sistem</h2>
+    <p class="login-sub">Cargo &amp; Port Logistics Scheduler &middot; PT Logistik Nusantara</p>
+    <form id="login-form">
+      <label class="field"><span>Username</span>
+        <input type="text" id="login-user" autocomplete="username" placeholder="fahri" required></label>
+      <label class="field"><span>Password</span>
+        <input type="password" id="login-pass" autocomplete="current-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required></label>
+      <p class="login-err" id="login-err" hidden>Username atau password salah. Coba akun simulasi di bawah.</p>
+      <button class="btn primary login-submit" type="submit">Login</button>
+    </form>
+    <div class="login-quick">
+      <span class="login-quick-label">Akun simulasi &mdash; klik untuk login cepat:</span>
+      <button class="btn ghost quick-btn" type="button" data-quick="fahri">
+        <strong>Admin / Project Manager</strong><small>Akses penuh &middot; Fahri</small></button>
+      <button class="btn ghost quick-btn" type="button" data-quick="staf">
+        <strong>User / Staf Operasional</strong><small>Update progres tugas &amp; status kontainer &middot; Dewi Lestari</small></button>
+    </div>
+    <ul class="login-note">
+      <li><strong>Admin</strong>: tambah/edit/hapus tugas, ubah dependensi, edit kalender libur, tambah anggota tim, alokasi resource, manifes &amp; ekspor.</li>
+      <li><strong>Staf</strong>: melihat Gantt, PERT/CPM, Diagram Jaringan &amp; Resource Chart (read-only), memperbarui <strong>% Completed</strong> &amp; status progres (Belum Dimulai / Berjalan / Selesai) pada tahapan yang ditugaskan kepadanya di tab Dashboard Jadwal, serta mengubah <strong>status kontainer</strong> (dropdown) pada tab Manifes &amp; Ekspor.</li>
+    </ul>
+    <p class="login-cred">Form login: <strong>fahri / admin123</strong> (Admin) &middot; <strong>dewi / staf123</strong> (Staf).</p>
+    <p class="login-sim">Autentikasi simulasi untuk keperluan studi kasus &mdash; sesi disimpan di LocalStorage browser.</p>
+  </div>
+</div>
+
+<noscript>
+  <div class="noscript-warn">JavaScript dinonaktifkan di browser Anda. Tab navigasi, diagram, dan tabel tidak akan berfungsi — aktifkan JavaScript lalu muat ulang halaman (Ctrl+F5).</div>
+</noscript>
+
+<!-- ==================== KEPALA CETAK (hanya tampil saat print) ==================== -->
+<div class="print-only print-head">
+  <h1>Laporan Jadwal Pengiriman Kargo</h1>
+  <p class="print-sub">PT Logistik Nusantara &middot; Rute Gorontalo &rarr; Surabaya &middot; Periode 01&ndash;30 November 2025</p>
+  <p id="print-meta" class="print-sub"></p>
+</div>
+
+<!-- ==================== TOP BAR ==================== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">LN</div>
+    <div class="brand-text">
+      <strong>Cargo &amp; Port Logistics Scheduler</strong>
+      <span>Sistem Informasi Pelayanan &amp; Logistik Kargo Kapal Laut</span>
+    </div>
+  </div>
+
+  <div class="route">
+    <div class="port">
+      <span class="port-code">GTO</span>
+      <span class="port-name">Gorontalo</span>
+    </div>
+    <div class="route-mid">
+      <span class="route-line"></span>
+      <span class="route-ship" id="route-vessel">KM Nusantara Perdana</span>
+      <span class="route-line"></span>
+    </div>
+    <div class="port">
+      <span class="port-code">SUB</span>
+      <span class="port-name">Surabaya</span>
+    </div>
+  </div>
+
+  <div class="topbar-actions no-print">
+    <button class="btn primary" id="btn-login" type="button">Login</button>
+    <div class="who" id="who" hidden>
+      <span class="who-avatar" id="who-avatar">?</span>
+      <span class="who-txt">Login: <strong id="who-name">&mdash;</strong>
+        <span class="role-badge rb-admin" id="who-role">(Admin)</span></span>
+      <button class="btn small ghost" id="btn-logout" type="button">Logout</button>
+    </div>
+    <span class="period-chip">01 &ndash; 30 Nov 2025</span>
+    <button class="btn ghost" id="btn-export-json" type="button">Ekspor JSON</button>
+    <button class="btn ghost" id="btn-export-schedule" type="button">Ekspor Jadwal CSV</button>
+    <button class="btn primary" id="btn-print" type="button">Cetak Laporan</button>
+  </div>
+</header>
+
+<!-- ==================== NAVIGASI TAB ==================== -->
+<nav class="tabs no-print" role="tablist">
+  <button class="tab-btn active" data-tab="dashboard" type="button">Dashboard Jadwal</button>
+  <button class="tab-btn" data-tab="cpm" type="button">Analisis CPM</button>
+  <button class="tab-btn" data-tab="reschart" type="button">Resource Chart</button>
+  <button class="tab-btn" data-tab="network" type="button">Diagram Jaringan</button>
+  <button class="tab-btn admin-only" data-tab="resources" data-min="admin" type="button">Sumber Daya</button>
+  <button class="tab-btn" data-tab="manifest" type="button">Manifes &amp; Ekspor</button>
+  <button class="tab-btn admin-only" data-tab="admin" data-min="admin" type="button">Manajemen Tugas</button>
+</nav>
+
+<main>
+
+<!-- ==================== 1. DASHBOARD / GANTT ==================== -->
+<section class="tab-panel active" id="panel-dashboard">
+
+  <div class="stat-grid" id="stat-grid"></div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Aturan Kalender Operasional</h2>
+      <span class="card-sub">Bongkar muat berhenti pada hari Minggu + hari libur custom</span>
+    </div>
+    <div class="cal-rules">
+      <div class="cal-rules-list" id="holiday-list"></div>
+      <form class="holiday-form no-print admin-only" id="holiday-form">
+        <span class="form-label">Tambah hari libur custom (one-off):</span>
+        <input type="date" id="hol-date" min="2025-11-01" max="2025-11-30" value="2025-11-15" required>
+        <input type="text" id="hol-label" placeholder="Keterangan (mis. Inspeksi Kapal)" maxlength="60" required>
+        <button class="btn small primary" type="submit">Tambah</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Cargo Schedule Chart &mdash; Timeline Pengiriman</h2>
+      <span class="card-sub">Klik batang untuk melihat detail tahapan</span>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><i class="sw work"></i>Hari kerja</span>
+      <span class="legend-item"><i class="sw sun"></i>Minggu (libur bongkar muat)</span>
+      <span class="legend-item"><i class="sw hol"></i>Libur custom / one-off</span>
+      <span class="legend-item"><i class="sw bar-crit"></i>Tahapan kritis (critical path)</span>
+      <span class="legend-item"><i class="sw bar-non"></i>Tahapan non-kritis</span>
+      <span class="legend-item"><i class="sw link-sw"></i>Dependensi FS / SS</span>
+    </div>
+
+    <div class="gantt" id="gantt"></div>
+
+    <p class="hint">Batang melewati hari berartikel pekerjaan <strong>dihentikan sementara</strong> pada hari libur tersebut
+      (Sabtu tetap dihitung hari kerja sesuai spesifikasi: libur hanya hari Minggu + tanggal 10 November).</p>
+  </div>
+
+  <div class="card" id="status-card">
+    <div class="card-head">
+      <h2 class="card-title">Status Progres Tugas</h2>
+      <span class="card-sub" id="status-count">&mdash;</span>
+    </div>
+    <div class="table-wrap">
+      <table class="table" id="status-table">
+        <thead>
+          <tr><th>ID</th><th>Tahapan</th><th>Personel yang Ditugaskan</th><th>Jadwal</th><th>% Completed</th><th>Status Progres</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint" id="status-hint">&mdash;</p>
+  </div>
+
+  <div class="card" id="task-detail-card">
+    <div class="card-head">
+      <h2 class="card-title">Detail Tahapan Terpilih</h2>
+      <span class="card-sub" id="detail-sub">&mdash;</span>
+    </div>
+    <div id="task-detail"></div>
+  </div>
+</section>
+
+<!-- ==================== 2. CPM ==================== -->
+<section class="tab-panel" id="panel-cpm">
+  <div class="stat-grid" id="cpm-summary"></div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Critical Path Method (CPM Logistik)</h2>
+      <span class="card-sub">Perhitungan pada kalender hari kerja (working-day calendar)</span>
+    </div>
+    <div class="chain-box" id="critical-chain"></div>
+    <div class="table-wrap">
+      <table class="table" id="cpm-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Tahapan</th>
+            <th class="num">Durasi</th>
+            <th>Predecessor</th>
+            <th>Dependensi</th>
+            <th class="num">ES</th>
+            <th class="num">EF</th>
+            <th class="num">LS</th>
+            <th class="num">LF</th>
+            <th class="num">TF</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint"><strong>ES</strong> = Earliest Start &middot; <strong>EF</strong> = Earliest Finish &middot;
+      <strong>LS</strong> = Latest Start &middot; <strong>LF</strong> = Latest Finish &middot;
+      <strong>TF</strong> = Total Float (hari kerja). TF = 0 &rarr; tahapan <strong>kritis</strong>.</p>
+  </div>
+
+  <div class="card no-print">
+    <div class="card-head">
+      <h2 class="card-title">Simulator Keterlambatan (What-if Analysis)</h2>
+      <span class="card-sub">Uji dampak keterlambatan satu tahapan terhadap jadwal keberangkatan</span>
+    </div>
+    <div class="sim-row">
+      <label class="field">
+        <span>Tahapan</span>
+        <select id="sim-task"></select>
+      </label>
+      <label class="field">
+        <span>Keterlambatan (hari kerja)</span>
+        <input type="number" id="sim-days" min="0" max="20" value="2">
+      </label>
+      <button class="btn primary" id="btn-sim" type="button">Simulasikan</button>
+      <button class="btn ghost" id="btn-sim-reset" type="button">Reset</button>
+    </div>
+    <div class="sim-result" id="sim-result">Pilih tahapan lalu tekan <em>Simulasikan</em>.</div>
+  </div>
+</section>
+
+<!-- ==================== 3. RESOURCE CHART ==================== -->
+<section class="tab-panel" id="panel-reschart">
+  <div class="stat-grid" id="rc-summary"></div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Resource Chart &mdash; Diagram Beban Kerja Tim</h2>
+      <span class="card-sub">Jumlah tugas &amp; total hari kerja per anggota tim &middot; terhubung otomatis dengan modul Sumber Daya &amp; Assignment tugas</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><i class="sw rc-ok"></i>Normal (&lt; 35% durasi proyek)</span>
+      <span class="legend-item"><i class="sw rc-warn"></i>Beban tinggi (35&ndash;50%)</span>
+      <span class="legend-item"><i class="sw rc-over"></i>Over-allocation (&gt; 50% atau hari kerja bentrok)</span>
+      <span class="legend-item"><i class="sw rc-thr-sw"></i>Batas 50% durasi proyek</span>
+    </div>
+    <div class="rc-chart" id="rc-chart"></div>
+    <p class="hint">Panjang batang = proporsi hari kerja yang dipakai personel terhadap total hari kerja proyek. Indikator
+      <strong>merah</strong> muncul bila beban melebihi <strong>50% durasi proyek</strong> <em>atau</em> personel dijadwalkan pada
+      dua tahapan di hari kerja yang sama (over-allocation). Kuning = waspada (35&ndash;50%).</p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Beban Kerja per Peran</h2>
+      <span class="card-sub">Agregasi total penugasan seluruh personel dalam satu peran</span>
+    </div>
+    <div class="rc-chart rc-chart-role" id="rc-role-chart"></div>
+    <p class="hint">Nilai = jumlah hari kerja seluruh personel pada peran tersebut dijumlahkan (satu tahapan dapat dihitung
+      lebih dari satu kali bila ditugaskan ke beberapa orang dalam peran yang sama). Data dihitung ulang otomatis saat penugasan
+      atau jadwal berubah.</p>
+  </div>
+</section>
+
+<!-- ==================== 4. NETWORK DIAGRAM ==================== -->
+<section class="tab-panel" id="panel-network">
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Alur Manifes &amp; Tracking Diagram (Network Diagram)</h2>
+      <span class="card-sub">Node = tahapan, panah = dependensi (SS / FS)</span>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><i class="sw node-crit"></i>Node kritis</span>
+      <span class="legend-item"><i class="sw node-non"></i>Node non-kritis</span>
+      <span class="legend-item"><i class="sw link-sw"></i>Arah alur manifes</span>
+    </div>
+    <div class="net-wrap" id="network"></div>
+    <p class="hint">Mulai dari registrasi &amp; penimbangan kargo (Gorontalo) &rarr; pemeriksaan beukai &rarr; muat kontainer
+      &rarr; pelayaran &rarr; pembongkaran &rarr; serah terima (Surabaya). Dependensi <strong>SS + 2 hari</strong> berarti
+      pemeriksaan dokumen mulai 2 hari kerja <em>setelah</em> registrasi dimulai (overlap), bukan menunggu selesai.</p>
+  </div>
+</section>
+
+<!-- ==================== 5. SUMBER DAYA ==================== -->
+<section class="tab-panel" id="panel-resources" data-min="admin">
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Tim Operasional</h2>
+      <span class="card-sub">1 Port Manager &middot; 2 Verifikator &middot; 3 Operator Crane &middot; 2 Logistics Coordinator</span>
+    </div>
+    <div class="team-grid" id="team-cards"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Pemetaan Tahapan &rarr; Anggota Tim</h2>
+      <span class="card-sub">Alokasi sumber daya per tahapan alur kerja</span>
+    </div>
+    <div class="table-wrap">
+      <table class="table" id="assign-table">
+        <thead>
+          <tr><th>ID</th><th>Tahapan</th><th class="num">Durasi</th><th>Jadwal</th><th>Personel yang ditugaskan</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Pemeriksaan Konflik Penugasan</h2>
+      <span class="card-sub">Deteksi personel yang dijadwalkan pada dua tahapan di hari kerja yang sama</span>
+    </div>
+    <div id="conflict-box"></div>
+  </div>
+  <div class="card no-print admin-only" id="team-add-card">
+    <div class="card-head">
+      <h2 class="card-title">Tambah Anggota Tim</h2>
+      <span class="card-sub">Hak akses Admin / Project Manager</span>
+    </div>
+    <form class="manifest-form" id="team-form">
+      <label class="field"><span>Nama Lengkap</span>
+        <input type="text" name="name" maxlength="40" placeholder="mis. Hasan Basri" required></label>
+      <label class="field"><span>Peran</span>
+        <select name="role">
+          <option>Port Manager</option><option>Verifikator</option>
+          <option selected>Operator Crane</option><option>Logistics Coordinator</option>
+        </select></label>
+      <label class="field"><span>Tugas Pokok (pisahkan dengan koma)</span>
+        <input type="text" name="duties" maxlength="120" placeholder="Pengawasan crane, Lashing, Pelaporan"></label>
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Tambahkan ke Tim</button>
+      </div>
+    </form>
+    <p class="hint" id="team-msg">Personel baru langsung tersedia untuk alokasi penugasan di panel <strong>Manajemen Tugas</strong> dan memengaruhi Resource Chart.</p>
+  </div>
+</section>
+
+<!-- ==================== 6. MANIFES & EKSPOR ==================== -->
+<section class="tab-panel" id="panel-manifest">
+  <div class="card no-print admin-only">
+    <div class="card-head">
+      <h2 class="card-title">Tambah Data Manifes Kargo</h2>
+      <span class="card-sub">Hak akses Admin &middot; data tersimpan otomatis di browser (localStorage)</span>
+    </div>
+    <form class="manifest-form" id="manifest-form">
+      <label class="field"><span>No. Container</span>
+        <input type="text" name="container" placeholder="LNSU-1001" maxlength="14" required></label>
+      <label class="field"><span>Shipper / Pengirim</span>
+        <input type="text" name="shipper" placeholder="PT Kopi Gorontalo" maxlength="40" required></label>
+      <label class="field"><span>Jenis Kargo</span>
+        <input type="text" name="commodity" placeholder="Biji Kopi Robusta" maxlength="40" required></label>
+      <label class="field"><span>Volume (MT)</span>
+        <input type="number" name="qty" min="0.1" step="0.1" placeholder="18.5" required></label>
+      <label class="field"><span>Penerima</span>
+        <input type="text" name="consignee" placeholder="CV Surya Niaga" maxlength="40" required></label>
+      <label class="field"><span>Status</span>
+        <select name="status">
+          <option>Terdaftar</option>
+          <option>Diperiksa</option>
+          <option>Dimuat</option>
+          <option>Dalam Perjalanan</option>
+          <option>Tiba</option>
+          <option>Serah Terima</option>
+        </select></label>
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Tambah ke Manifes</button>
+        <button class="btn ghost" type="button" id="btn-reset-manifest">Reset ke Data Contoh</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Manifes Kargo &mdash; Gorontalo &rarr; Surabaya</h2>
+      <span class="card-sub" id="manifest-count">&mdash;</span>
+    </div>
+    <div class="table-wrap">
+      <table class="table" id="manifest-table">
+        <thead>
+          <tr>
+            <th class="num">#</th><th>No. Container</th><th>Shipper</th><th>Jenis Kargo</th>
+            <th class="num">Volume (MT)</th><th>Penerima</th><th>Rute</th><th>Status (dropdown)</th><th class="no-print">Aksi</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+    <div class="export-row no-print">
+      <button class="btn primary" id="btn-csv" type="button">Ekspor CSV Manifes</button>
+      <button class="btn ghost" id="btn-json" type="button">Ekspor JSON Manifes</button>
+      <button class="btn ghost admin-only" id="btn-save" type="button">Simpan ke Browser</button>
+      <button class="btn ghost" id="btn-print-2" type="button">Cetak Laporan Jadwal</button>
+    </div>
+    <p class="hint" id="save-note">&mdash;</p>
+  </div>
+</section>
+
+<!-- ==================== 7. MANAJEMEN TUGAS (ADMIN) ==================== -->
+<section class="tab-panel" id="panel-admin" data-min="admin">
+
+  <div class="card admin-only no-print">
+    <div class="card-head">
+      <h2 class="card-title">Tambah / Edit Tugas &amp; Dependensi</h2>
+      <span class="card-sub">Hak akses Admin / Project Manager</span>
+    </div>
+    <form class="task-form" id="task-form">
+      <input type="hidden" id="tf-edit-id" value="">
+      <label class="field"><span>Nama Tahapan</span>
+        <input type="text" id="tf-name" maxlength="60" placeholder="mis. Pengecekan Suhu Kontainer" required></label>
+      <label class="field"><span>Durasi (hari kerja, 1&ndash;30)</span>
+        <input type="number" id="tf-dur" min="1" max="30" value="2" required></label>
+      <label class="field"><span>Status Progres</span>
+        <select id="tf-status">
+          <option>Belum Dimulai</option><option>Berjalan</option><option>Selesai</option>
+        </select></label>
+
+      <div class="field dep-field">
+        <span>Dependensi (Predecessor &middot; tipe &middot; lag)</span>
+        <div class="dep-list" id="tf-deps"></div>
+        <button class="btn small ghost" type="button" id="btn-add-dep">+ Tambah Dependensi</button>
+      </div>
+
+      <fieldset class="field team-field">
+        <span>Alokasi Resource &mdash; personel yang ditugaskan</span>
+        <div class="team-checks" id="tf-team"></div>
+      </fieldset>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit" id="tf-submit">Simpan Tugas</button>
+        <button class="btn ghost" type="button" id="tf-cancel" hidden>Batal Edit</button>
+        <button class="btn danger" type="button" id="tf-delete" hidden>Hapus Tugas Terpilih</button>
+      </div>
+      <p class="hint" id="tf-msg">Isi formulir lalu tekan <strong>Simpan Tugas</strong>. Perubahan langsung memperbarui Gantt, CPM, Diagram Jaringan, dan Resource Chart.</p>
+    </form>
+  </div>
+
+  <div class="card admin-only">
+    <div class="card-head">
+      <h2 class="card-title">Daftar Tugas &mdash; Kelola Jadwal</h2>
+      <span class="card-sub" id="ta-count">&mdash;</span>
+    </div>
+    <div class="table-wrap">
+      <table class="table" id="task-admin-table">
+        <thead>
+          <tr><th>ID</th><th>Tahapan</th><th class="num">Durasi</th><th>Predecessor</th><th>Personel</th><th>Status</th><th class="no-print">Aksi</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint">Data tugas tersimpan di LocalStorage browser. <strong>Hapus</strong> dinonaktifkan bila tugas masih menjadi predecessor tugas lain, dan dependensi yang membentuk siklus (cycle) akan ditolak.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <span>Cargo &amp; Port Logistics Scheduler &middot; Studi Kasus Arsitektur Sistem Informasi</span>
+  <span>PT Logistik Nusantara &mdash; Rute Gorontalo ke Surabaya &middot; 01&ndash;30 November 2025</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

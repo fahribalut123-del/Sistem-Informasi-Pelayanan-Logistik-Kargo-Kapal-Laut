@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+vendor/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+*.env
+
+# Database
+*.sqlite
+*.db
+database/*.sql
+
+# Build
+dist/
+build/
+target/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Config lokal
+config/local.php
+
+# Chat History (jangan di-push)
+Chat History Freebuff/
