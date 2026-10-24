@@ -1,3 +1,5 @@
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/1d9e4c55-b39c-46f4-8ed9-8d5a2f29fd37" />
+
 # Sistem Informasi Pelayanan & Logistik Kargo Kapal Laut
  
 Sistem Informasi Pelayanan & Logistik Kargo Kapal Laut adalah aplikasi berbasis web yang dirancang sebagai studi kasus sistem informasi logistik kargo kapal laut. Aplikasi ini menampilkan dan mengelola jadwal pengiriman kargo kapal laut secara terstruktur, mulai dari perencanaan tahapan operasional, penyusunan jadwal timeline, hingga pelacakan status manifes kargo dari pelabuhan asal hingga tujuan.
